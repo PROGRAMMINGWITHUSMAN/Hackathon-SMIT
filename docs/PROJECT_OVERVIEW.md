@@ -28,8 +28,6 @@ Requires a `.env.local` file (see `.env.local` template in the repo root; values
 come from your Supabase Dashboard → Project Settings → API).
 
 ## Current status
-- **Phase 1 (Foundation): in review** — Supabase SDK installed, env template created,
-  `supabase/schema.sql` written (NOT yet applied to Supabase), docs skeleton created,
-  minimal app shell. No application features implemented yet.
+- **Phase 2 (authentication & roles): in review.** Login page, server-side session/role checking, middleware route gating, and sign-out are built and lint/build-verified. **Login is untested** — blocked on the one-time admin bootstrap (`supabase/bootstrap-admin.sql`, manual Supabase Dashboard step).
 - Phase plan and live status: see [FEATURE_OWNERSHIP.md](./FEATURE_OWNERSHIP.md)
 - Business rules: see [BUSINESS_RULES.md](./BUSINESS_RULES.md)

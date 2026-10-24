@@ -1,24 +1,61 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ============================================================================
+   HCM Lite — OFFICIAL DESIGN TOKENS (Tailwind CSS v4 theme)
+   ----------------------------------------------------------------------------
+   Every color below is a SEMANTIC token: components say what a color is FOR
+   ("surface", "line", "success"), never what it looks like. Raw hex values
+   live ONLY in this file — the permanent design system for every phase.
+   Usage examples: bg-page, bg-surface, text-ink, text-muted, border-line,
+   bg-primary, hover:bg-primary-hover, bg-primary-tint, ring-focus,
+   bg-success-bg text-success, shadow-card.
+   ============================================================================ */
+
+@theme {
+  /* --- Typography --- */
+  /* Premium native font stack — no downloads, works offline (unlike
+     next/font/google, which made builds network-dependent). */
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+
+  /* --- Brand & primary actions --- */
+  --color-primary: #065F46; /* buttons, links, active states */
+  --color-primary-hover: #064E3B; /* darker hover for primary actions */
+  --color-primary-tint: #ECFDF5; /* soft background behind primary elements */
+  --color-focus: #065F46; /* keyboard focus rings */
+
+  /* --- Backgrounds & surfaces --- */
+  --color-page: #F7F8F5; /* app background */
+  --color-surface: #FFFFFF; /* cards, panels, tables */
+  --color-sidebar: #102D25; /* dark navigation sidebar / brand panels */
+  --color-sage: #DCE9DF; /* soft neutral-green tint (hover, quiet fills) */
+
+  /* --- Text --- */
+  --color-ink: #17211D; /* main text */
+  --color-muted: #64716B; /* secondary text, placeholders */
+
+  /* --- Borders & dividers --- */
+  --color-line: #E3E9E4;
+
+  /* --- Status colors (always pair: text-X on bg-X-bg) --- */
+  --color-success: #166534;
+  --color-success-bg: #DCFCE7;
+  --color-warning: #92400E;
+  --color-warning-bg: #FEF3C7;
+  --color-danger: #991B1B;
+  --color-danger-bg: #FEE2E2;
+  --color-info: #1E40AF;
+  --color-info-bg: #DBEAFE;
+
+  /* --- Shadows — small and restrained --- */
+  --shadow-card: 0 1px 2px rgb(23 33 29 / 0.06); /* cards, inputs */
+  --shadow-pop: 0 12px 32px -8px rgb(23 33 29 / 0.18); /* modals, previews */
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* Base page styles. The system is light-only by design — the old dark-mode
+   media query was removed so the OS setting can never shift brand colors. */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-page);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
 }

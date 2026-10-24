@@ -32,11 +32,15 @@ Every business table carries `organization_id`; every server query filters by th
 requester's organization. One-org deployment today; multi-tenant-ready design.
 
 ## Security model (two layers)
-1. **Route Handlers (primary):** every protected endpoint calls a `requireUser(roles)`
-   guard (Phase 3) — session verified server-side, role checked before any data access.
-2. **Row Level Security (backstop):** RLS enabled on all tables with **no policies** →
-   the public anon key can read/write nothing. Only server code with the service-role
-   key (never shipped to the browser) can touch data.
+1. **Route Handlers / Server Components (primary):** every protected page starts with `getCurrentUser()` (`src/lib/auth.js`) — the session is verified with Supabase on the server, and the role is read from the `profiles` row of the verified user id. The browser is never trusted to state a role. Protected API routes will use the same helper (from Phase 4 onward).
+2. **Row Level Security (backstop):** RLS enabled on all tables with **no policies** → the public anon key can read/write nothing (verified by the Phase 2 connectivity test: 0 rows visible).
+
+### Why the server-only admin client exists (`src/lib/supabase/admin.js`)
+With zero RLS policies, even a logged-in session cannot read its own `profiles` row. Rather than widening RLS just yet, role lookups go through a server-only privileged client that fetches exactly one row — the one whose id equals the verified user's id. It cannot be imported by browser code, and the build was scanned: the service-role key appears 0 times in `.next`.
+If later phases want browser-direct reads (e.g. realtime), the cleaner alternative is narrow "own data" RLS policies — decide then, not now.
+
+## Admin bootstrap (Phase 2)
+First admin is created by the OWNER manually: Supabase Dashboard → Authentication → Add user (auto-confirm), then run [`supabase/bootstrap-admin.sql`](../supabase/bootstrap-admin.sql) once in the SQL Editor. No public sign-up endpoint exists by design — self-signup would let anyone grant themselves a role.
 
 ## Deliberately deferred
 - `complete_setup()` transaction function — Phase 2

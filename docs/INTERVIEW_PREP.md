@@ -52,3 +52,39 @@ security because anyone can call the API directly with curl.
 - **Service role**: a key that skips RLS — server-only by convention.
 - **Race condition**: two requests reading the same state and both acting on it,
   producing a duplicate the code checked to prevent.
+
+## Phase 3 — Employee management decisions
+
+### How are employees created without handling their passwords?
+`inviteUserByEmail` (Supabase's admin Auth API, called only from the server
+after verifying the caller is Admin/HR) creates the Auth account and emails
+the person a link to set their OWN password. We never see, invent, store, or
+display any password. Limitation: it needs the Supabase project's email
+delivery (the built-in test sender works with hourly limits; custom SMTP is
+better for production).
+
+### What if the profile insert fails after the Auth user was created?
+That would leave an orphan login with no HCM profile. The create flow
+compensates: if the profile insert fails, we delete ONLY the Auth user whose
+id we just captured from the invite response — never anyone else — then
+return a generic 500. All-or-nothing behavior without a cross-system
+transaction.
+
+### Why does every employee query filter by organization_id?
+Tenant isolation. The caller's org comes from their VERIFIED database profile
+(serverside), never from the request. A crafted request carrying a foreign
+employee UUID simply gets 404, because the lookup is always
+`.eq("organization_id", caller.org).eq("id", requested)`.
+
+### How is privilege escalation prevented?
+Layered server-side checks on every write: role and salary fields are
+Admin-only; nobody can change their own role or status; HR can only change
+status of plain employees; and the LAST active Admin can never be demoted or
+deactivated (counted with a database query before applying the change). The
+browser only gets friendly form fields — the API re-validates everything and
+rejects unknown fields outright.
+
+### Why does the directory merge emails from Auth?
+`profiles` intentionally stores no email — Supabase Auth owns identity data
+(emails, password hashes). Listing employees therefore fetches profiles
+(org-scoped) plus the Auth user list on the server and merges by id.
