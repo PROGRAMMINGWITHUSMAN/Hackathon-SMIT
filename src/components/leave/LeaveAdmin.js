@@ -59,7 +59,7 @@ export default function LeaveAdmin({ initial, types }) {
       setError(data?.error ?? "Could not cancel the request.");
       return;
     }
-    setBanner(data.message ?? "Request cancelled.");
+    setBanner([data.message ?? "Request cancelled.", ...(data.warnings ?? [])].join(" "));
     await load();
     router.refresh();
   }

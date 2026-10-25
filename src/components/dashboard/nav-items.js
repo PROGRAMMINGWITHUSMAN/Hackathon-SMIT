@@ -9,6 +9,7 @@ import {
   IconClock,
   IconCalendar,
   IconWallet,
+  IconSpark,
 } from "@/components/ui/icons";
 
 export const NAV_ITEMS = [
@@ -17,4 +18,7 @@ export const NAV_ITEMS = [
   { label: "Attendance", href: "/dashboard/attendance", icon: IconClock },
   { label: "Leave", href: "/dashboard/leave", icon: IconCalendar },
   { label: "Payroll", href: "/dashboard/payroll", icon: IconWallet },
+  { label: "AI Assistant", href: "/dashboard/assistant", icon: IconSpark },
+  { label: "Announcements", href: "/dashboard/announcements", icon: IconCalendar },
+  { label: "Audit history", href: "/dashboard/audit", icon: IconClock, roles: ["admin"] },
 ];

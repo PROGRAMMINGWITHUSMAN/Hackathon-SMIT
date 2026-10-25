@@ -52,6 +52,17 @@
   --shadow-pop: 0 12px 32px -8px rgb(23 33 29 / 0.18); /* modals, previews */
 }
 
+/* Route progress bar — smooth width changes while navigation is pending. */
+.route-progress-bar {
+  border-radius: 9999px;
+  transition: width 180ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .route-progress-bar {
+    transition: none;
+  }
+}
+
 /* Base page styles. The system is light-only by design — the old dark-mode
    media query was removed so the OS setting can never shift brand colors. */
 body {

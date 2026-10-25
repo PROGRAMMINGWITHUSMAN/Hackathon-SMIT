@@ -7,6 +7,7 @@ import {
   validateEmployeeInput,
   isUuid,
 } from "@/lib/employees";
+import { activeProfiles, recordAudit, sendNotification } from "@/lib/communications";
 
 // ---------------------------------------------------------------------------
 // /api/employees/[id] — one employee.
@@ -200,11 +201,82 @@ export async function PATCH(request, { params }) {
       changes,
     });
 
-    if (caller.role !== "admin") {
-      return NextResponse.json({ employee: removeSalaryFor(updated) });
+    const warnings = [];
+    const changedFields = Object.keys(changes);
+    if ("role" in changes) {
+      const warning = await recordAudit({
+        organizationId: caller.organization_id,
+        actorId: caller.id,
+        action: "employee.role_changed",
+        entity: "profiles",
+        entityId: updated.id,
+        details: { before_role: target.role, after_role: updated.role },
+      });
+      if (warning) warnings.push(warning);
     }
-    return NextResponse.json({ employee: updated });
+    if ("status" in changes) {
+      const warning = await recordAudit({
+        organizationId: caller.organization_id,
+        actorId: caller.id,
+        action: "employee.status_changed",
+        entity: "profiles",
+        entityId: updated.id,
+        details: { before_status: target.status, after_status: updated.status },
+      });
+      if (warning) warnings.push(warning);
+    }
+    if (changedFields.some((field) => !["role", "status"].includes(field))) {
+      const warning = await recordAudit({
+        organizationId: caller.organization_id,
+        actorId: caller.id,
+        action: "employee.updated",
+        entity: "profiles",
+        entityId: updated.id,
+        details: { changed_fields: changedFields },
+      });
+      if (warning) warnings.push(warning);
+    }
+
+    if (changedFields.some((field) => ["role", "status"].includes(field))) {
+      const { profiles: managers, warning: recipientWarning } = await activeProfiles(
+        caller.organization_id,
+        ["admin", "hr"]
+      );
+      if (recipientWarning) warnings.push(recipientWarning);
+      const recipients = new Set(
+        managers.filter((person) => person.id !== caller.id).map((person) => person.id)
+      );
+      if (updated.status === "active") recipients.add(updated.id);
+      const warning = await sendNotification({
+        organizationId: caller.organization_id,
+        userIds: [...recipients],
+        title: "Employee access updated",
+        body: "An employee role or account status changed.",
+        dedupeKey: `employee:${updated.id}:access:${updated.updated_at}`,
+      });
+      if (warning) warnings.push(warning);
+    }
+
+    if (caller.role !== "admin") {
+      return NextResponse.json({
+        employee: removeSalaryFor(updated),
+        ...(warnings.length ? { warnings } : {}),
+      });
+    }
+    return NextResponse.json({
+      employee: updated,
+      ...(warnings.length ? { warnings } : {}),
+    });
   } catch (error) {
+    if (
+      error?.code === "P0001" &&
+      error?.message === "Cannot remove the last active Admin of the organization."
+    ) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 403 }
+      );
+    }
     console.error("PATCH /api/employees/[id] failed:", error);
     return NextResponse.json(
       { error: "Something went wrong. Please try again." },

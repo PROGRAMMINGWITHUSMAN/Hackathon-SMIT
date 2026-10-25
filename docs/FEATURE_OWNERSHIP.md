@@ -14,7 +14,7 @@ Never mark `Done` without recorded test results.
 | 5 | Leave management (balances, requests, review, cancel, notifications, audit) | 5 | `src/lib/leave*.mjs/js`, `src/app/api/leaves/**`, `src/app/dashboard/leave/`, `src/components/leave/` | In review — 64 tests PASS incl. real-DB integration + browser E2E (see TEST_CHECKLIST) |
 | 6 | Payroll (drafts, finalize/lock, payslips, deductions) | 6 | `src/lib/payroll*.mjs/js`, `src/app/api/payroll/**`, `src/app/dashboard/payroll/`, `src/components/payroll/` | In review — 81 tests PASS incl. real-DB integration + browser E2E |
 | 7 | Dashboard / analytics per role | 7 | `src/lib/analytics*.mjs/js`, `src/components/dashboard/charts.js`, `src/app/dashboard/page.js` | In review — 94 tests PASS incl. real-DB integration + browser E2E |
-| 8 | AI assistant + notifications + audit viewer | 9 | planned | Not started |
+| 8 | AI assistant + communications + audit viewer | 8/9 | `src/components/assistant/`, `src/components/communications/`, `src/app/api/ai/`, `src/app/api/notifications/`, `src/app/api/announcements/`, `src/app/api/audit/`, `src/lib/communications*` | In review — Phase 9 implementation present; migration and DB-backed/UI verification pending |
 | 9 | Test pass, docs completion, deploy | 10 | `docs/TEST_CHECKLIST.md` | Not started |
 
 ## Update rule

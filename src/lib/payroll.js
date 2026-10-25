@@ -12,6 +12,7 @@ import {
 } from "@/lib/payroll-rules.mjs";
 import { isUniqueViolation } from "@/lib/attendance-rules.mjs";
 import { isUuid } from "@/lib/employees";
+import { recordAudit, sendNotification } from "@/lib/communications";
 
 // ---------------------------------------------------------------------------
 // Payroll data layer — SERVER ONLY. Callers verified via requireApiUser().
@@ -273,10 +274,19 @@ export async function createPayrollRun(callerProfile, { year, month }, nowUtc = 
     }
   }
 
+  const auditWarning = await recordAudit({
+    organizationId: orgId,
+    actorId: callerProfile.id,
+    action: "payroll.draft_created",
+    entity: "payroll_runs",
+    entityId: run.id,
+    details: { period: `${year}-${String(month).padStart(2, "0")}`, employee_count: rows.length },
+  });
   return {
     run: { ...run, label: periodLabel(year, month) },
     totals: totalsFor(rows),
     skipped,
+    auditWarning,
   };
 }
 
@@ -316,7 +326,15 @@ export async function recalculatePayrollRun(callerProfile, runId) {
       .insert(rows.map(({ employee_name, ...slip }) => ({ ...slip, payroll_run_id: runId })));
     if (error) throw error;
   }
-  return { run, totals: totalsFor(rows), skipped };
+  const auditWarning = await recordAudit({
+    organizationId: orgId,
+    actorId: callerProfile.id,
+    action: "payroll.draft_recalculated",
+    entity: "payroll_runs",
+    entityId: runId,
+    details: { period: `${run.period_year}-${String(run.period_month).padStart(2, "0")}` },
+  });
+  return { run, totals: totalsFor(rows), skipped, auditWarning };
 }
 
 // --- Finalize / lock (Admin only, compare-and-swap) ---------------------------
@@ -365,5 +383,36 @@ export async function transitionPayrollRun(callerProfile, runId, action) {
   if (!updated || updated.length === 0) {
     return { conflict: `This run was already ${transition.from === "draft" ? "finalized" : "processed"}.` };
   }
-  return { run: updated[0] };
+
+  const changedRun = updated[0];
+  const period = `${run.period_year}-${String(run.period_month).padStart(2, "0")}`;
+  const auditWarning = await recordAudit({
+    organizationId: callerProfile.organization_id,
+    actorId: callerProfile.id,
+    action: action === "finalize" ? "payroll.finalized" : "payroll.locked",
+    entity: "payroll_runs",
+    entityId: runId,
+    details: { period },
+  });
+
+  let notificationWarning = null;
+  if (action === "finalize") {
+    const { data: slips, error: slipError } = await admin
+      .from("payslips")
+      .select("employee_id")
+      .eq("payroll_run_id", runId);
+    if (slipError) {
+      console.error("Payroll finalization recipients could not be loaded:", slipError.message);
+      notificationWarning = "Payroll was finalized, but employee notifications could not be delivered.";
+    } else {
+      notificationWarning = await sendNotification({
+        organizationId: callerProfile.organization_id,
+        userIds: (slips ?? []).map((slip) => slip.employee_id),
+        title: "Payslip available",
+        body: `Your payroll for ${period} has been finalized.`,
+        dedupeKey: `payroll:${runId}:finalized`,
+      });
+    }
+  }
+  return { run: changedRun, auditWarning, notificationWarning };
 }

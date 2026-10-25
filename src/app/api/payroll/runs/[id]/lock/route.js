@@ -23,6 +23,7 @@ export async function POST(request, { params }) {
     return NextResponse.json({
       run: result.run,
       message: "Payroll locked — it can no longer be changed.",
+      ...(result.auditWarning ? { warnings: [result.auditWarning] } : {}),
     });
   } catch (error) {
     console.error("POST /api/payroll/runs/[id]/lock failed:", error);

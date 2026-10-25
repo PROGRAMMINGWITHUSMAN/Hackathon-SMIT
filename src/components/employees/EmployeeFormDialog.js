@@ -117,7 +117,7 @@ export default function EmployeeFormDialog({
       return;
     }
 
-    onSaved(data.message);
+    onSaved([data.message, ...(data.warnings ?? [])].filter(Boolean).join(" "));
   }
 
   const inputClass =

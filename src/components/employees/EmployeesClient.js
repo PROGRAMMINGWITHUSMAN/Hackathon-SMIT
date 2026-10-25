@@ -85,12 +85,12 @@ export default function EmployeesClient({
     }
     setConfirmTarget(null);
     setConfirmLoading(false);
+    const statusMessage = nextStatus === "inactive"
+      ? `${employee.full_name} deactivated — access disabled, records kept.`
+      : `${employee.full_name} reactivated.`;
     setBanner({
       tone: nextStatus === "inactive" ? "warning" : "success",
-      text:
-        nextStatus === "inactive"
-          ? `${employee.full_name} deactivated — access disabled, records kept.`
-          : `${employee.full_name} reactivated.`,
+      text: [statusMessage, ...(data.warnings ?? [])].join(" "),
     });
     router.refresh();
   }

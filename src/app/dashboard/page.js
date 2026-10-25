@@ -1,11 +1,8 @@
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { getOrgDashboard, getEmployeeDashboard } from "@/lib/analytics";
 import { karachiTimeLabel, karachiDateString } from "@/lib/attendance-rules.mjs";
 import { statusLabel } from "@/components/attendance/AttendanceStatusBadge";
-import DashboardShell from "@/components/dashboard/DashboardShell";
-import NoProfileScreen from "@/components/dashboard/NoProfileScreen";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Alert from "@/components/ui/Alert";
@@ -27,14 +24,8 @@ import {
 const money = (n) => `PKR ${Number(n).toLocaleString()}`;
 
 export default async function DashboardPage() {
-  const { user, profile } = await getCurrentUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-  if (!profile) {
-    return <NoProfileScreen email={user.email} />;
-  }
+  // Layout guarantees a verified user with an active profile.
+  const { profile } = await getCurrentUser();
 
   const firstName = profile.full_name.split(" ")[0];
   const isEmployee = profile.role === "employee";
@@ -56,28 +47,16 @@ export default async function DashboardPage() {
 
   if (loadError) {
     return (
-      <DashboardShell
-        title="Overview"
-        email={user.email}
-        fullName={profile.full_name}
-        role={profile.role}
-      >
-        <Card>
-          <Alert tone="error">
-            Could not load the dashboard. Refresh the page to try again.
-          </Alert>
-        </Card>
-      </DashboardShell>
+      <Card>
+        <Alert tone="error">
+          Could not load the dashboard. Refresh the page to try again.
+        </Alert>
+      </Card>
     );
   }
 
   return (
-    <DashboardShell
-      title="Overview"
-      email={user.email}
-      fullName={profile.full_name}
-      role={profile.role}
-    >
+    <>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight text-ink">
@@ -99,7 +78,7 @@ export default async function DashboardPage() {
       ) : (
         <OrgDashboard org={org} viewerRole={profile.role} />
       )}
-    </DashboardShell>
+    </>
   );
 }
 

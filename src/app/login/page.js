@@ -29,16 +29,30 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    let error;
+    try {
+      ({ error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      }));
+    } catch {
+      setError("Network error — please try again.");
+      setLoading(false);
+      return;
+    }
 
     if (error) {
+      const networkFailure =
+        error.status === 0 ||
+        /failed to fetch|networkerror|network request failed|load failed/i.test(
+          error.message
+        );
       setError(
-        error.message === "Invalid login credentials"
-          ? "Wrong email or password. Please try again."
-          : error.message
+        networkFailure
+          ? "Network error — please try again."
+          : error.message === "Invalid login credentials"
+            ? "Wrong email or password. Please try again."
+            : error.message
       );
       setLoading(false);
       return;

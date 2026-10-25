@@ -74,6 +74,55 @@ create table public.profiles (
 );
 create index profiles_organization_idx on public.profiles (organization_id);
 
+-- Serialize removal/deactivation/demotion of active Admins per organization.
+-- The organization row lock closes the race in the API's friendly pre-check.
+create function public.protect_last_active_admin()
+returns trigger
+language plpgsql
+as $$
+declare
+  other_active_admins integer;
+begin
+  if old.role = 'admin'
+    and old.status = 'active'
+    and (
+      tg_op = 'DELETE'
+      or new.role <> 'admin'
+      or new.status <> 'active'
+      or new.organization_id <> old.organization_id
+    )
+  then
+    perform 1
+    from public.organizations
+    where id = old.organization_id
+    for update;
+
+    select count(*)
+    into other_active_admins
+    from public.profiles
+    where organization_id = old.organization_id
+      and id <> old.id
+      and role = 'admin'
+      and status = 'active';
+
+    if other_active_admins = 0 then
+      raise exception using
+        errcode = 'P0001',
+        message = 'Cannot remove the last active Admin of the organization.';
+    end if;
+  end if;
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger profiles_protect_last_active_admin
+before update or delete on public.profiles
+for each row execute function public.protect_last_active_admin();
+
 
 -- ----------------------------------------------------------------------------
 -- 3. holidays — configured non-working days (e.g. national holidays)
@@ -221,14 +270,46 @@ create table public.notifications (
   user_id         uuid not null references public.profiles (id) on delete cascade,
   title           text not null,
   body            text not null,
+  dedupe_key      text,
   read_at         timestamptz,              -- null = unread
   created_at      timestamptz not null default now()
 );
-create index notifications_user_idx on public.notifications (user_id, created_at);
+create index notifications_user_idx on public.notifications (organization_id, user_id, created_at desc);
+create unique index notifications_dedupe_key_idx on public.notifications (dedupe_key);
 
 
 -- ----------------------------------------------------------------------------
--- 10. audit_logs — who did what, when (Admin-visible, Phase 9 viewer)
+-- 10. announcements — authenticated in-app communications
+-- ----------------------------------------------------------------------------
+create table public.announcements (
+  id              uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations (id),
+  creator_id      uuid not null references public.profiles (id),
+  title           varchar(120) not null check (char_length(trim(title)) between 3 and 120),
+  message         text not null check (char_length(trim(message)) between 1 and 5000),
+  audience_roles  text[] not null default array['admin', 'hr', 'employee'],
+  status          text not null default 'draft' check (status in ('draft', 'published', 'archived')),
+  published_at    timestamptz,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  check (cardinality(audience_roles) between 1 and 3),
+  check (audience_roles <@ array['admin', 'hr', 'employee']::text[]),
+  check (status <> 'published' or published_at is not null)
+);
+create index announcements_audience_idx
+  on public.announcements (organization_id, status, published_at desc);
+
+create table public.announcement_reads (
+  announcement_id uuid not null references public.announcements (id) on delete cascade,
+  user_id         uuid not null references public.profiles (id) on delete cascade,
+  read_at         timestamptz not null default now(),
+  primary key (announcement_id, user_id)
+);
+create index announcement_reads_user_idx on public.announcement_reads (user_id, read_at desc);
+
+
+-- ----------------------------------------------------------------------------
+-- 11. audit_logs — who did what, when (Admin-visible, Phase 9 viewer)
 -- ----------------------------------------------------------------------------
 create table public.audit_logs (
   id              uuid primary key default gen_random_uuid(),
@@ -259,6 +340,8 @@ alter table public.leave_requests enable row level security;
 alter table public.payroll_runs   enable row level security;
 alter table public.payslips       enable row level security;
 alter table public.notifications  enable row level security;
+alter table public.announcements  enable row level security;
+alter table public.announcement_reads enable row level security;
 alter table public.audit_logs     enable row level security;
 
 -- ============================================================================

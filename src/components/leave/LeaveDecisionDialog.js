@@ -5,16 +5,14 @@ import Modal from "@/components/employees/Modal";
 import Button from "@/components/ui/Button";
 import Alert from "@/components/ui/Alert";
 
-// Approve/Reject dialog with an optional reviewer comment. The comment goes
-// into the audit log and the employee's notification (documented behavior —
-// no schema change was needed for it).
+// Approve/Reject dialog. Decision notifications contain no free-form
+// reviewer text, keeping potentially sensitive details out of messages.
 export default function LeaveDecisionDialog({
   request,
   decision, // "approve" | "reject"
   onClose,
   onDone,
 }) {
-  const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -25,7 +23,6 @@ export default function LeaveDecisionDialog({
     const response = await fetch(`/api/leaves/${request.id}/${decision}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ comment: comment.trim() === "" ? null : comment.trim() }),
     }).catch(() => null);
     const data = response ? await response.json().catch(() => ({})) : {};
     if (!response || !response.ok) {
@@ -33,7 +30,7 @@ export default function LeaveDecisionDialog({
       setLoading(false);
       return;
     }
-    onDone(data.message ?? "Done.");
+    onDone([data.message ?? "Done.", ...(data.warnings ?? [])].join(" "));
   }
 
   const approving = decision === "approve";
@@ -56,23 +53,6 @@ export default function LeaveDecisionDialog({
         </div>
 
         {error !== "" && <Alert tone="error">{error}</Alert>}
-
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="reviewer_comment" className="text-sm font-medium text-ink">
-            Comment to the employee (optional)
-          </label>
-          <textarea
-            id="reviewer_comment"
-            rows={2}
-            maxLength={500}
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            placeholder={
-              approving ? "e.g. Enjoy your break!" : "e.g. Team crunch that week — please re-book."
-            }
-            className="block w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink placeholder-muted shadow-card focus:border-primary focus:outline-none focus:ring-2 focus:ring-focus/30"
-          />
-        </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-line pt-4">
           <Button variant="secondary" onClick={onClose} disabled={loading}>

@@ -24,6 +24,9 @@ export async function POST(request, { params }) {
     return NextResponse.json({
       run: result.run,
       message: "Payroll finalized — payslips are now visible to employees.",
+      ...([result.auditWarning, result.notificationWarning].filter(Boolean).length
+        ? { warnings: [result.auditWarning, result.notificationWarning].filter(Boolean) }
+        : {}),
     });
   } catch (error) {
     console.error("POST /api/payroll/runs/[id]/finalize failed:", error);

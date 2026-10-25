@@ -1,5 +1,7 @@
 import "server-only";
+import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isValidDateString } from "@/lib/attendance-rules.mjs";
 
 // ---------------------------------------------------------------------------
 // Employee data layer — SERVER ONLY.
@@ -44,7 +46,10 @@ async function getEmailMap(admin) {
   return map;
 }
 
-export async function listEmployeeProfiles(organizationId) {
+// cache(): several helpers (analytics, attendance views, leave views, this
+// directory) request the roster during ONE render — the profiles query and
+// the auth-user email walk now run once per request instead of per caller.
+export const listEmployeeProfiles = cache(async function listEmployeeProfiles(organizationId) {
   const admin = createAdminClient();
   const { data: profiles, error } = await admin
     .from("profiles")
@@ -55,7 +60,7 @@ export async function listEmployeeProfiles(organizationId) {
 
   const emailMap = await getEmailMap(admin);
   return profiles.map((p) => ({ ...p, email: emailMap[p.id] ?? null }));
-}
+});
 
 export async function getEmployeeProfile(organizationId, employeeId) {
   const admin = createAdminClient();
@@ -201,8 +206,6 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ROLES = ["admin", "hr", "employee"];
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
 export function isUuid(value) {
   return UUID_RE.test(value);
 }
@@ -275,7 +278,7 @@ export function validateEmployeeInput(body, { partial = false } = {}) {
   // --- joining date (optional, YYYY-MM-DD) ---
   if ("joined_at" in body && body.joined_at !== null && body.joined_at !== "") {
     const date = String(body.joined_at);
-    if (!DATE_RE.test(date) || Number.isNaN(Date.parse(date))) {
+    if (!isValidDateString(date)) {
       errors.joined_at = "Use a valid date (YYYY-MM-DD).";
     } else {
       values.joined_at = date;

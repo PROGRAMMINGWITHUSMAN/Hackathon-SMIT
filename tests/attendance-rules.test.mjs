@@ -14,6 +14,7 @@ import {
   karachiSecondsOfDay,
   isWeekend,
   isWorkingDay,
+  isValidDateString,
   hasDayEnded,
   checkInStatus,
   workedMinutes,
@@ -43,6 +44,14 @@ test("weekends: Sunday and Saturday are non-working by default", () => {
 test("holidays are respected in isWorkingDay", () => {
   assert.equal(isWorkingDay("2026-10-23", ["2026-10-23"]), false);
   assert.equal(isWorkingDay("2026-10-22", ["2026-10-23"]), true);
+});
+
+test("date validation rejects impossible dates and accepts leap days", () => {
+  assert.equal(isValidDateString("2026-02-28"), true);
+  assert.equal(isValidDateString("2024-02-29"), true);
+  assert.equal(isValidDateString("2026-02-29"), false);
+  assert.equal(isValidDateString("2026-02-31"), false);
+  assert.equal(isValidDateString("2026-13-01"), false);
 });
 
 test("late rule: 09:00 check-in is Present", () => {

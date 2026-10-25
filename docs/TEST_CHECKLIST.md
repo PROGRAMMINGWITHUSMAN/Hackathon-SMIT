@@ -2,6 +2,22 @@
 
 Rules: a box is ticked only after the check was **actually run** and the real result recorded. "Expected to pass" is never enough.
 
+## Phase 9 — Notifications, announcements & audit (in review)
+
+**Automated (this pass):** 6 database-free tests for announcement validation, audit metadata allowlisting/sanitization, and fixed internal notification destinations. Lint/build and safe unit-suite results are recorded in the delivery report for this pass.
+
+**Not yet verified:** database-backed recipient/deduplication/read-state behavior, cross-organization isolation, announcement publishing/read state, audit generation/access, and browser UI flows. The communications migration is additive and has not been applied. Do not apply it to a live database without owner approval.
+
+## Phase 8 — AI assistant (built 2026-10-25)
+
+**Automated — `npm test` (13 AI tests within 114/114 PASS):** 8 unit (intent registry role-gating: org intents denied to employees, audit admin-only, own-* for all roles, policy for all, gibberish/SQL → null; message/history bounds incl. history trimming to 6; rate limiter window/retry-hint/isolation; live 401 on /api/ai/chat) + 5 integration vs the REAL DB with disposable accounts and NO Gemini calls (policy context static + personal-data-free; org builders aggregate for HR while audit returns null; own contexts contain no other person's name/id and no org aggregates; employee denied audit at builder level; unknown intent → null).
+
+**Browser E2E (executed 2026-10-25, disposable `e2e.chat.*` account — deleted after):** assistant page renders with role-appropriate suggestion chips; **real Gemini policy Q&A answered correctly** ("Only the Admin can finalize payroll.", half-day definition); own-leave question with the privacy flag OFF → `intent=own_leave, data_disabled=true` privacy notice, no HR data sent; org question as employee → `intent=unsupported` (no org intent, no model call); 501-char message → 400 field error; off-topic → unsupported; full UI send flow (textarea → submit → assistant bubble).
+
+**Blocked/pending (deliberate):**
+- [ ] **Data-intent path with `AI_ALLOW_HR_CONTEXT=true`** — BLOCKED pending the owner's privacy decision (paid-tier terms). When enabled, ask an org/own question as each role and confirm replies quote the aggregates from the dashboard.
+- [ ] Rate-limit 429 via UI — covered by unit tests + implementation; not re-driven through the browser (would burn the model quota).
+
 ## Phase 7 — Dashboard & analytics (built 2026-10-25)
 
 **Automated — `npm test` (13 analytics tests within 94/94 PASS):** 7 unit (trend derivation incl. missing-checkout/on-leave/absence math + weekend skip, department distribution incl. unassigned grouping + shares, leave mix, own-summary counts, recentDates window) + 6 integration vs the REAL database with disposable accounts: headcount active-vs-total; departments exclude inactive employees; trend counts real attendance rows; leave mix counts pending then approved after a real review; **admin receives audit activity while HR receives none**; employee dashboard contains own data only (serialized response contains no other employee's id/name) and empty-data employees render without crashing.
@@ -32,7 +48,7 @@ Rules: a box is ticked only after the check was **actually run** and the real re
 | 5.4 | Employee submits casual day → HR rejects with comment → employee sees Rejected + reviewer; casual back to 10/10, annual 9/14 | ✅ PASS |
 
 **Not tested / N/A:**
-- [ ] NOT TESTED: notification *UI* (no notification viewer exists yet — Phase 9; rows verified directly in DB)
+- [ ] NOT TESTED in this verification pass: notification and announcement UI, recipient scoping, and read state
 - [ ] N/A by design: cross-org access (single-org; org-scoped queries)
 
 

@@ -103,6 +103,7 @@ export async function POST(request) {
         request: result.request,
         days: result.days,
         message: `Leave request submitted (${result.days} working day${result.days === 1 ? "" : "s"}) — pending review.`,
+        ...(result.notificationWarning ? { warnings: [result.notificationWarning] } : {}),
       },
       { status: 201 }
     );

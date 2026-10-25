@@ -5,6 +5,7 @@ import {
   createEmployee,
   validateEmployeeInput,
 } from "@/lib/employees";
+import { activeProfiles, recordAudit, sendNotification } from "@/lib/communications";
 
 // ---------------------------------------------------------------------------
 // /api/employees — the employee directory API (Admin + HR).
@@ -147,12 +148,37 @@ export async function POST(request) {
       );
     }
 
+    const warnings = [];
+    const auditWarning = await recordAudit({
+      organizationId: caller.organization_id,
+      actorId: caller.id,
+      action: "employee.created",
+      entity: "profiles",
+      entityId: result.profile.id,
+      details: { role: result.profile.role },
+    });
+    if (auditWarning) warnings.push(auditWarning);
+    const { profiles: managers, warning: recipientWarning } = await activeProfiles(
+      caller.organization_id,
+      ["admin", "hr"]
+    );
+    if (recipientWarning) warnings.push(recipientWarning);
+    const notificationWarning = await sendNotification({
+      organizationId: caller.organization_id,
+      userIds: managers.filter((person) => person.id !== caller.id).map((person) => person.id),
+      title: "Employee added",
+      body: "An employee record was created.",
+      dedupeKey: `employee:${result.profile.id}:created`,
+    });
+    if (notificationWarning) warnings.push(notificationWarning);
+
     return NextResponse.json(
       {
         employee:
           caller.role === "hr" ? removeSalaryFor(result.profile) : result.profile,
         message:
           "Employee created. They can now sign in with the email and password you set.",
+        ...(warnings.length ? { warnings } : {}),
       },
       { status: 201 }
     );

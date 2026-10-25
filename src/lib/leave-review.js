@@ -17,8 +17,8 @@ export async function handleLeaveReview(request, params, decision) {
     if (guard.errorResponse) return guard.errorResponse;
     const { profile } = guard;
 
-    // Optional reviewer comment (<= 500 chars) — stored in the audit log and
-    // the employee notification (no schema change needed).
+    // Accept the optional legacy comment field for API compatibility. Only
+    // its presence is audited; its contents are not retained or notified.
     let comment = null;
     try {
       const body = await request.json();
@@ -54,9 +54,11 @@ export async function handleLeaveReview(request, params, decision) {
       );
     }
 
+    const warnings = [result.auditWarning, result.notificationWarning].filter(Boolean);
     return NextResponse.json({
       request: result.request,
       message: decision === "approved" ? "Leave approved." : "Leave rejected.",
+      ...(warnings.length ? { warnings } : {}),
     });
   } catch (error) {
     console.error("leave review failed:", error);

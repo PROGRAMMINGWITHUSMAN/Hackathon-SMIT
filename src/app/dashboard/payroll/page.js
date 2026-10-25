@@ -1,7 +1,4 @@
-import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import DashboardShell from "@/components/dashboard/DashboardShell";
-import NoProfileScreen from "@/components/dashboard/NoProfileScreen";
 import PayrollAdmin from "@/components/payroll/PayrollAdmin";
 import PayrollEmployee from "@/components/payroll/PayrollEmployee";
 import Card from "@/components/ui/Card";
@@ -13,14 +10,8 @@ import { karachiDateString } from "@/lib/attendance-rules.mjs";
 // own finalized payslips. The API enforces the same split for direct calls.
 
 export default async function PayrollPage() {
-  const { user, profile } = await getCurrentUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-  if (!profile) {
-    return <NoProfileScreen email={user.email} />;
-  }
+  // Layout guarantees a verified user with an active profile.
+  const { profile } = await getCurrentUser();
 
   const today = karachiDateString(new Date());
   const currentYear = Number(today.slice(0, 4));
@@ -63,14 +54,5 @@ export default async function PayrollPage() {
     );
   }
 
-  return (
-    <DashboardShell
-      title="Payroll"
-      email={user.email}
-      fullName={profile.full_name}
-      role={profile.role}
-    >
-      {content}
-    </DashboardShell>
-  );
+  return content;
 }

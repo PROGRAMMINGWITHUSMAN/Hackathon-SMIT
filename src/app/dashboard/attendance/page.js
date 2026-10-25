@@ -1,7 +1,4 @@
-import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import DashboardShell from "@/components/dashboard/DashboardShell";
-import NoProfileScreen from "@/components/dashboard/NoProfileScreen";
 import AttendanceEmployee from "@/components/attendance/AttendanceEmployee";
 import AttendanceAdmin from "@/components/attendance/AttendanceAdmin";
 import Card from "@/components/ui/Card";
@@ -18,14 +15,8 @@ import {
 // organization day view. All times/decisions are computed on the server.
 
 export default async function AttendancePage() {
-  const { user, profile } = await getCurrentUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-  if (!profile) {
-    return <NoProfileScreen email={user.email} />;
-  }
+  // Layout guarantees a verified user with an active profile.
+  const { profile } = await getCurrentUser();
 
   const today = karachiDateString(new Date());
 
@@ -63,14 +54,5 @@ export default async function AttendancePage() {
     content = <AttendanceAdmin initial={view} today={today} />;
   }
 
-  return (
-    <DashboardShell
-      title="Attendance"
-      email={user.email}
-      fullName={profile.full_name}
-      role={profile.role}
-    >
-      {content}
-    </DashboardShell>
-  );
+  return content;
 }

@@ -1,4 +1,5 @@
 import "./globals.css";
+import RouteProgress from "@/components/navigation/RouteProgress";
 
 // System font stack only — deliberately no next/font/google. Google Fonts are
 // fetched from the network at build time, which made `next build` fail
@@ -13,6 +14,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full bg-page text-ink antialiased">
+        <RouteProgress />
         {children}
       </body>
     </html>

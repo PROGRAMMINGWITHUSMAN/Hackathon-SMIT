@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -19,7 +20,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 //     request the single row whose id equals the VERIFIED user's id.
 // ---------------------------------------------------------------------------
 
-export async function getCurrentUser() {
+// React cache() makes this request-scoped: when a layout AND its page (or
+// several helpers) call getCurrentUser() during one render, the underlying
+// getUser() network call and profile query run ONCE. Verification strength
+// is unchanged — every request still performs the full check.
+export const getCurrentUser = cache(async function getCurrentUser() {
   // Step 1: who is logged in? (verified server-side by Supabase)
   const supabase = await createClient();
   const {
@@ -53,7 +58,7 @@ export async function getCurrentUser() {
   }
 
   return { user, profile };
-}
+});
 
 // ---------------------------------------------------------------------------
 // requireApiUser(roles) — guard for Route Handlers. Verifies the caller with

@@ -13,6 +13,30 @@ guard). Frontend hiding is convenience, never security.
 
 ## Endpoints
 
+### Implemented — Communications & audit (Phase 9)
+
+| Method & Path | Roles | Purpose | Errors |
+|---|---|---|---|
+| `GET /api/notifications?limit=&offset=` | any active profile | own notifications only, unread count, and total; limit capped at 50 | 400 invalid pagination, 401, 500 |
+| `PATCH /api/notifications/[id]` | any active profile | mark only the caller's notification as read | 400 invalid body/id, 401, 404, 500 |
+| `POST /api/notifications/read-all` | any active profile | mark only caller's notifications as read | 401, 500 |
+| `GET /api/announcements` | any active profile | published announcements for caller's role; `?manage=true` returns organization announcements to Admin/HR | 401, 403, 500 |
+| `POST /api/announcements` | admin, hr | create a draft (or publish); creator/organization derive from verified profile | 400, 401, 403, 500 |
+| `PATCH /api/announcements/[id]` | admin, hr | edit, publish, or archive an organization announcement | 400, 401, 403, 404, 500 |
+| `POST /api/announcements/[id]/read` | any active profile | set read state only for a published announcement intended for caller's role | 400, 401, 404, 500 |
+| `GET /api/audit?limit=&offset=&action=&entity=` | admin | sanitized, organization-scoped audit history with bounded pagination and filters | 400, 401, 403, 500 |
+
+Leave, employee lifecycle, attendance corrections, payroll draft/recalculation/finalize/lock, and announcement changes record audit entries after successful mutations. Relevant leave, employee, attendance-correction, payroll-finalization, and publication events create in-app notifications. Mutation responses include warnings if a subsequent audit/notification write fails; these writes are not transactionally coupled to the business mutation.
+
+### Implemented — AI foundation (Phase 8, Step 1)
+
+| Method & Path | Roles | Purpose | Errors |
+|---|---|---|---|
+| `POST /api/ai/test` | any active profile | Gemini connectivity check. Optional `{prompt}` (1–200 chars); default is a fixed SYNTHETIC prompt — no HR data is sent in this step. Returns `{ok, model, reply}` | 400 invalid prompt, 401, 503 (GEMINI_API_KEY not configured), 429 (provider rate limit), 502 (other provider errors, generic message), 500 |
+| `POST /api/ai/chat` | any active profile | AI assistant. `{message: 1–500, history?: ≤10 bounded entries}` → `{reply, intent}`. Intent registry decides the path: unsupported → canned (no model call); data intent while `AI_ALLOW_HR_CONTEXT≠true` → privacy notice (no model call, no HR data sent); policy intent → model over static product-docs context; data intent with the flag → model over minimal aggregated/own context. Rate limit: 10/min/user in-memory. Replies capped 2000 chars | 400 validation, 401, 429 (ours or provider), 503 not configured, 502 provider, 500 |
+
+Key handling: `GEMINI_API_KEY` is read only in `src/lib/gemini.js` (server-only module); never logged, returned, or exposed to the browser. Model: `gemini-3.1-flash-lite` (measured ~2s vs ~60s for 3.8-flash on this key).
+
 ### Implemented — Payroll (Phase 6)
 
 | Method & Path | Roles | Purpose | Errors |
@@ -34,11 +58,11 @@ Admin-only finalize/lock is enforced at the route AND in the data layer. Eligibi
 | `GET /api/leave-types` | any active profile | canonical leave types | 401, 500 |
 | `GET /api/leaves` | employee (own + balances) · admin/hr (org-wide, validated `?status=&type=&employee_id=&from=&to=`) | requests with employee/reviewer names and computed working days | 400 invalid filters, 401, 403, 500 |
 | `POST /api/leaves` | any active profile (self only) | submit own request; body `{leave_type, start_date, end_date, reason?}` — employee_id/org never accepted; overlap/balance/invalid-range → 422 with field errors | 400 unknown fields, 422, 401, 500 |
-| `POST /api/leaves/[id]/approve` | admin, hr | approve a pending request (never your own); optional `{comment}`; re-validates overlap+balance; compare-and-swap → double review = 409 | 400, 401, 403 (self), 404, 409, 422 |
-| `POST /api/leaves/[id]/reject` | admin, hr | same rules as approve, with optional comment | same |
+| `POST /api/leaves/[id]/approve` | admin, hr | approve a pending request (never your own); accepts legacy optional `{comment}` but does not retain its contents; re-validates overlap+balance; compare-and-swap → double review = 409 | 400, 401, 403 (self), 404, 409, 422 |
+| `POST /api/leaves/[id]/reject` | admin, hr | same rules as approve | same |
 | `POST /api/leaves/[id]/cancel` | owner (pending only) or admin/hr (pending only) | withdraw; approved/rejected are history → 409 | 401, 403, 404, 409 |
 
-Side effects: submit notifies org reviewers (in-app `notifications`); approve/reject notify the employee (comment included) and write a `leave.approved`/`leave.rejected` audit-log entry with before/after; cancel is audited. Reviewer comments live in the audit log + notification (no schema change). Concurrency: submit re-validates after insert with earliest-wins overlap arbitration (exactly one survivor); review/cancel are compare-and-swap on `status='pending'`.
+Side effects: submit notifies active org reviewers (in-app `notifications`); if none are available, the response includes a warning. Approve/reject notify the employee and write a `leave.approved`/`leave.rejected` audit-log entry with status changes and a boolean indicating whether a legacy API comment was supplied. Comment contents are not copied into communications/audit metadata or notifications. Cancel is audited. Concurrency: submit re-validates after insert with earliest-wins overlap arbitration (exactly one survivor); review/cancel are compare-and-swap on `status='pending'`.
 
 ### Implemented — Attendance (Phase 4)
 | Method & Path | Roles | Purpose | Errors |

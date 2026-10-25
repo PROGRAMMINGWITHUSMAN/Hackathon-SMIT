@@ -1,7 +1,4 @@
-import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import DashboardShell from "@/components/dashboard/DashboardShell";
-import NoProfileScreen from "@/components/dashboard/NoProfileScreen";
 import LeaveEmployee from "@/components/leave/LeaveEmployee";
 import LeaveAdmin from "@/components/leave/LeaveAdmin";
 import Card from "@/components/ui/Card";
@@ -13,14 +10,8 @@ import { getLeaveTypes, getEmployeeLeaveView, getOrgLeaveView } from "@/lib/leav
 // the same split for every direct call.
 
 export default async function LeavePage() {
-  const { user, profile } = await getCurrentUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-  if (!profile) {
-    return <NoProfileScreen email={user.email} />;
-  }
+  // Layout guarantees a verified user with an active profile.
+  const { profile } = await getCurrentUser();
 
   // Fetch first (try/catch around data only), build JSX afterwards.
   let types = null;
@@ -60,14 +51,5 @@ export default async function LeavePage() {
     content = <LeaveAdmin initial={orgView} types={types} />;
   }
 
-  return (
-    <DashboardShell
-      title="Leave"
-      email={user.email}
-      fullName={profile.full_name}
-      role={profile.role}
-    >
-      {content}
-    </DashboardShell>
-  );
+  return content;
 }

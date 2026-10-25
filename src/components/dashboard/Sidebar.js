@@ -12,7 +12,7 @@ import { IconGrid } from "@/components/ui/icons";
 // usePathname(), which highlights the current page. No data or privileged
 // logic lives here.
 
-export default function Sidebar() {
+export default function Sidebar({ role }) {
   const pathname = usePathname();
 
   return (
@@ -27,7 +27,7 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-4">
-        {NAV_ITEMS.map((item) => {
+        {NAV_ITEMS.filter((item) => !item.roles || item.roles.includes(role)).map((item) => {
           const active = item.href !== undefined && pathname === item.href;
 
           const content = (

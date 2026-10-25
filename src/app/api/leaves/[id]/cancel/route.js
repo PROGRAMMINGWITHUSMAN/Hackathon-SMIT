@@ -33,6 +33,9 @@ export async function POST(request, { params }) {
     return NextResponse.json({
       request: result.request,
       message: "Request cancelled — any reserved balance is released.",
+      ...([result.auditWarning, result.notificationWarning].filter(Boolean).length
+        ? { warnings: [result.auditWarning, result.notificationWarning].filter(Boolean) }
+        : {}),
     });
   } catch (error) {
     console.error("POST /api/leaves/[id]/cancel failed:", error);

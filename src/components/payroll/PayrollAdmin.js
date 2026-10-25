@@ -50,7 +50,10 @@ export default function PayrollAdmin({ initialRuns, viewerRole, currentYear, cur
       setCreating(false);
       return;
     }
-    setBanner(`Draft created for ${data.run.label} (${data.totals.employees} payslip(s), ${money(data.totals.net)} net).`);
+    setBanner([
+      `Draft created for ${data.run.label} (${data.totals.employees} payslip(s), ${money(data.totals.net)} net).`,
+      ...(data.auditWarning ? [data.auditWarning] : []),
+    ].join(" "));
     setCreating(false);
     await refreshRuns();
     await openDetail(data.run.id);
@@ -82,7 +85,12 @@ export default function PayrollAdmin({ initialRuns, viewerRole, currentYear, cur
       setError(data?.error ?? "Action failed.");
       return;
     }
-    setBanner(data.message ?? "Done.");
+    setBanner([
+      data.message ?? "Done.",
+      ...(data.auditWarning ? [data.auditWarning] : []),
+      ...(data.notificationWarning ? [data.notificationWarning] : []),
+      ...(data.warnings ?? []),
+    ].join(" "));
     await refreshRuns();
     await openDetail(runId);
   }

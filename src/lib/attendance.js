@@ -10,6 +10,7 @@ import {
   effectiveStatus,
   isUniqueViolation,
 } from "@/lib/attendance-rules.mjs";
+import { recordAudit, sendNotification } from "@/lib/communications";
 
 // ---------------------------------------------------------------------------
 // Attendance data layer — SERVER ONLY (same rules as the employees module).
@@ -295,11 +296,7 @@ export async function correctAttendance(
   if (fetchError) throw fetchError;
   if (!row) return { notFound: true };
 
-  const before = {
-    check_in: row.check_in,
-    check_out: row.check_out,
-    status: row.status,
-  };
+  const beforeStatus = row.status;
 
   const after = {
     check_in: checkIn.toISOString(),
@@ -315,22 +312,25 @@ export async function correctAttendance(
     .single();
   if (updateError) throw updateError;
 
-  // Defensible audit trail: who changed what, before and after.
-  const { error: auditError } = await admin.from("audit_logs").insert({
-    organization_id: callerProfile.organization_id,
-    actor_id: callerProfile.id,
+  const auditWarning = await recordAudit({
+    organizationId: callerProfile.organization_id,
+    actorId: callerProfile.id,
     action: "attendance.corrected",
     entity: "attendance",
-    entity_id: row.id,
-    details: { before, after },
+    entityId: row.id,
+    details: {
+      changed_fields: ["check_in", "check_out"],
+      before_status: beforeStatus,
+      after_status: after.status,
+    },
   });
-  if (auditError) {
-    console.error("audit log write failed:", auditError.message);
-    // The correction itself succeeded; the audit failure is logged
-    // server-side. Throwing here would roll back nothing but confuse the
-    // caller — flag it in the response instead.
-    return { record: updated, auditWarning: true };
-  }
+  const notificationWarning = await sendNotification({
+    organizationId: callerProfile.organization_id,
+    userIds: [row.employee_id],
+    title: "Attendance record updated",
+    body: "Your attendance record was corrected by HR.",
+    dedupeKey: `attendance:${row.id}:corrected:${after.check_in}:${after.check_out ?? "open"}`,
+  });
 
-  return { record: updated };
+  return { record: updated, auditWarning, notificationWarning };
 }

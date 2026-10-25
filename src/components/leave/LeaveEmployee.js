@@ -57,7 +57,7 @@ export default function LeaveEmployee({ types, balances, requests }) {
       setLoading(false);
       return;
     }
-    setBanner(data.message ?? "Request submitted.");
+    setBanner([data.message ?? "Request submitted.", ...(data.warnings ?? [])].join(" "));
     setStartDate("");
     setEndDate("");
     setReason("");
@@ -78,7 +78,7 @@ export default function LeaveEmployee({ types, balances, requests }) {
       setBusyId(null);
       return;
     }
-    setBanner(data.message ?? "Request cancelled.");
+    setBanner([data.message ?? "Request cancelled.", ...(data.warnings ?? [])].join(" "));
     setBusyId(null);
     router.refresh();
   }

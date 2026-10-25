@@ -88,10 +88,8 @@ export async function PATCH(request, { params }) {
 
     const result = await correctAttendance(caller, id, values);
     const payload = { record: result.record };
-    if (result.auditWarning) {
-      payload.audit_warning =
-        "Correction saved, but the audit log entry could not be written.";
-    }
+    const warnings = [result.auditWarning, result.notificationWarning].filter(Boolean);
+    if (warnings.length) payload.warnings = warnings;
     return NextResponse.json(payload);
   } catch (error) {
     console.error("PATCH /api/attendance/[id] failed:", error);

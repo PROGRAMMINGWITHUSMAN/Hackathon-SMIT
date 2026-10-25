@@ -54,7 +54,10 @@ export default function CorrectDialog({ record, onClose, onSaved }) {
       setLoading(false);
       return;
     }
-    onSaved(data.audit_warning ?? "Correction saved — the change was written to the audit log.");
+    onSaved([
+      "Correction saved.",
+      ...(data.warnings ?? []),
+    ].join(" "));
   }
 
   return (

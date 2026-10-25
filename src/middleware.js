@@ -46,11 +46,17 @@ export async function middleware(request) {
     },
   });
 
-  // getUser() checks the session against Supabase's server — it does not
-  // trust what the cookie claims without verifying it.
+  // getSession() is a LOCAL cookie check (no network round trip) — the
+  // documented Supabase pattern for middleware. It keeps this middleware
+  // cheap on every navigation. Security is unchanged: actual verification
+  // (auth.getUser + profile lookup) happens in every page/API via
+  // getCurrentUser()/requireApiUser(), and RLS still protects the database.
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  // Only route by SESSION PRESENCE here; pages verify for real.
+  const user = session?.user ?? null;
 
   const path = request.nextUrl.pathname;
 

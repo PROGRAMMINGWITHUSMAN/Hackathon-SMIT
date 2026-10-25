@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { karachiDateString } from "@/lib/attendance-rules.mjs";
+import { recordAudit, sendNotification } from "@/lib/communications";
 import {
   validateLeaveInput,
   computeBalances,
@@ -64,24 +65,19 @@ async function withNames(admin, organizationId, rows) {
   }));
 }
 
-async function notify(admin, organizationId, userIds, title, body) {
-  if (userIds.length === 0) return;
-  const { error } = await admin.from("notifications").insert(
-    userIds.map((userId) => ({ organization_id: organizationId, user_id: userId, title, body }))
-  );
-  if (error) console.error("notification insert failed:", error.message);
+async function notify(admin, organizationId, userIds, title, body, dedupeKey) {
+  return sendNotification({ organizationId, userIds, title, body, dedupeKey });
 }
 
 async function audit(admin, organizationId, actorId, action, entityId, details) {
-  const { error } = await admin.from("audit_logs").insert({
-    organization_id: organizationId,
-    actor_id: actorId,
+  return recordAudit({
+    organizationId,
+    actorId,
     action,
     entity: "leave_requests",
-    entity_id: entityId,
+    entityId,
     details,
   });
-  if (error) console.error("audit insert failed:", error.message);
 }
 
 // --- Reads ----------------------------------------------------------------
@@ -239,22 +235,31 @@ export async function submitLeaveRequest(callerProfile, input, nowUtc = new Date
   }
 
   // Notify the org's reviewers (Admin + HR profiles) about the new request.
-  const { data: reviewers } = await admin
+  const { data: reviewers, error: reviewerError } = await admin
     .from("profiles")
     .select("id")
     .eq("organization_id", orgId)
     .eq("status", "active")
     .in("role", ["admin", "hr"])
     .neq("id", callerProfile.id);
-  await notify(
-    admin,
-    orgId,
-    (reviewers ?? []).map((r) => r.id),
-    "New leave request",
-    `${callerProfile.full_name} requested ${values.days} day(s) of ${values.leave_type} leave (${values.start_date} → ${values.end_date}).`
-  );
+  let notificationWarning = null;
+  if (reviewerError) {
+    console.error("Leave reviewers could not be loaded:", reviewerError.message);
+    notificationWarning = "The request was submitted, but reviewer notifications could not be delivered.";
+  } else if (!reviewers?.length) {
+    notificationWarning = "The request was submitted, but no active reviewer is available to notify.";
+  } else {
+    notificationWarning = await notify(
+      admin,
+      orgId,
+      (reviewers ?? []).map((r) => r.id),
+      "New leave request",
+      "A new leave request is ready for review.",
+      `leave-request:${inserted.id}:submitted`
+    );
+  }
 
-  return { request: inserted, days: values.days };
+  return { request: inserted, days: values.days, notificationWarning };
 }
 
 // Checks the ACTIVE set (pending+approved) of one employee against a
@@ -398,33 +403,24 @@ export async function reviewLeaveRequest(
     return { conflict: "This request was already reviewed by someone else." };
   }
 
-  const reviewerComment =
-    comment != null ? String(comment).trim().slice(0, 500) : null;
-
-  // In-app notification to the employee (comment included when given).
   const typeName = request.leave_type;
-  await notify(
+  const notificationWarning = await notify(
     admin,
     orgId,
     [request.employee_id],
     decision === "approved" ? "Leave approved" : "Leave rejected",
     decision === "approved"
-      ? `Your ${typeName} leave (${request.start_date} → ${request.end_date}) was approved by ${callerProfile.full_name}.${reviewerComment ? ` Note: ${reviewerComment}` : ""}`
-      : `Your ${typeName} leave (${request.start_date} → ${request.end_date}) was rejected by ${callerProfile.full_name}.${reviewerComment ? ` Note: ${reviewerComment}` : ""}`
+      ? `Your ${typeName} leave request was approved.`
+      : `Your ${typeName} leave request was rejected.`,
+    `leave-request:${requestId}:${decision}`
   );
 
-  // Audit trail with before/after + reviewer comment (no sensitive data).
-  await audit(admin, orgId, callerProfile.id, `leave.${decision}`, requestId, {
-    before: { status: request.status },
-    after: { status: decision, decided_by: callerProfile.id, decided_at: decidedAt },
-    employee_id: request.employee_id,
-    leave_type: request.leave_type,
-    start_date: request.start_date,
-    end_date: request.end_date,
-    comment: reviewerComment,
+  const auditWarning = await audit(admin, orgId, callerProfile.id, `leave.${decision}`, requestId, {
+    before_status: request.status,
+    after_status: decision,
+    comment_added: typeof comment === "string" && comment.trim().length > 0,
   });
-
-  return { request: updated[0] };
+  return { request: updated[0], notificationWarning, auditWarning };
 }
 
 // --- Cancel / withdraw ---------------------------------------------------------
@@ -466,20 +462,21 @@ export async function cancelLeaveRequest(callerProfile, requestId) {
   }
 
   // If a reviewer cancels someone's pending request, tell the employee.
+  let notificationWarning = null;
   if (!isOwner) {
-    await notify(
+    notificationWarning = await notify(
       admin,
       orgId,
       [request.employee_id],
       "Leave request cancelled",
-      `Your ${request.leave_type} leave (${request.start_date} → ${request.end_date}) was cancelled by ${callerProfile.full_name}.`
+      "Your leave request was cancelled.",
+      `leave-request:${requestId}:cancelled`
     );
   }
-  await audit(admin, orgId, callerProfile.id, "leave.cancelled", requestId, {
-    before: { status: "pending" },
-    after: { status: "cancelled" },
-    employee_id: request.employee_id,
+  const auditWarning = await audit(admin, orgId, callerProfile.id, "leave.cancelled", requestId, {
+    before_status: "pending",
+    after_status: "cancelled",
   });
 
-  return { request: updated[0] };
+  return { request: updated[0], notificationWarning, auditWarning };
 }
